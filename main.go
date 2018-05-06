@@ -15,13 +15,13 @@ import (
 const PREFIX = "relayxconnection:"
 
 type ArraySliceMetaInfo struct {
-	SliceStart  int64 `json:"sliceStart"`
-	ArrayLength int64 `json:"arrayLength"`
+	SliceStart  int `json:"sliceStart"`
+	ArrayLength int `json:"arrayLength"`
 }
 
 type ConnectionInterface interface {
-	TotalCount() (int64, error)
-	FetchPage( /* lower */ int64 /* upper */, int64) ([]interface{}, error)
+	TotalCount() (int, error)
+	FetchPage( /* lower */ int /* upper */, int) ([]interface{}, error)
 }
 
 func ConnectionFromInterface(
@@ -45,11 +45,11 @@ func ConnectionFromInterface(
 	endOffset := ternaryMin(sliceEnd, beforeOffset, meta.ArrayLength)
 
 	if args.First != -1 {
-		endOffset = min(endOffset, startOffset+int64(args.First))
+		endOffset = min(endOffset, startOffset+int(args.First))
 	}
 
 	if args.Last != -1 {
-		startOffset = max(startOffset, endOffset-int64(args.Last))
+		startOffset = max(startOffset, endOffset-int(args.Last))
 	}
 
 	begin := max(startOffset-meta.SliceStart, 0)
@@ -64,12 +64,14 @@ func ConnectionFromInterface(
 	if err != nil {
 		return
 	}
-	var edges = make([]*relay.Edge, len(slice))
+	var edges []*relay.Edge
 	for index, value := range slice {
-		edges = append(edges, &relay.Edge{
-			Cursor: OffsetToCursor(startOffset + int64(index)),
-			Node:   value,
-		})
+		if value != nil {
+			edges = append(edges, &relay.Edge{
+				Cursor: OffsetToCursor(startOffset + int(index)),
+				Node:   value,
+			})
+		}
 	}
 
 	var firstEdgeCursor, lastEdgeCursor relay.ConnectionCursor
@@ -78,7 +80,7 @@ func ConnectionFromInterface(
 		lastEdgeCursor = edges[len(edges)-1:][0].Cursor
 	}
 
-	lowerBound := int64(0)
+	lowerBound := int(0)
 	if len(args.After) > 0 {
 		lowerBound = afterOffset + 1
 	}
@@ -110,26 +112,26 @@ func ConnectionFromInterface(
 }
 
 // Creates the cursor string from an offset
-func OffsetToCursor(offset int64) relay.ConnectionCursor {
+func OffsetToCursor(offset int) relay.ConnectionCursor {
 	str := fmt.Sprintf("%v%v", PREFIX, offset)
 	return relay.ConnectionCursor(base64.StdEncoding.EncodeToString([]byte(str)))
 }
 
-func CursorToOffset(cursor relay.ConnectionCursor) (int64, error) {
+func CursorToOffset(cursor relay.ConnectionCursor) (int, error) {
 	str := ""
 	b, err := base64.StdEncoding.DecodeString(string(cursor))
 	if err == nil {
 		str = string(b)
 	}
 	str = strings.Replace(str, PREFIX, "", -1)
-	offset, err := strconv.ParseInt(str, 10, 64)
+	offset, err := strconv.Atoi(str)
 	if err != nil {
 		return 0, errors.New("invalid cursor")
 	}
 	return offset, nil
 }
 
-func GetOffsetWithDefault(cursor relay.ConnectionCursor, defaultOffset int64) int64 {
+func GetOffsetWithDefault(cursor relay.ConnectionCursor, defaultOffset int) int {
 	if cursor == "" {
 		return defaultOffset
 	}
@@ -140,24 +142,24 @@ func GetOffsetWithDefault(cursor relay.ConnectionCursor, defaultOffset int64) in
 	return offset
 }
 
-func max(a, b int64) int64 {
+func max(a, b int) int {
 	if a < b {
 		return b
 	}
 	return a
 }
 
-func ternaryMax(a, b, c int64) int64 {
+func ternaryMax(a, b, c int) int {
 	return max(max(a, b), c)
 }
 
-func min(a, b int64) int64 {
+func min(a, b int) int {
 	if a > b {
 		return b
 	}
 	return a
 }
 
-func ternaryMin(a, b, c int64) int64 {
+func ternaryMin(a, b, c int) int {
 	return min(min(a, b), c)
 }
